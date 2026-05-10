@@ -13,6 +13,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 
 from database import Base # noqa
+from src.core.config import settings
 from src.infrastructure.sqlite.models.user import User # noqa
 from src.infrastructure.sqlite.models.category import Category # noqa
 from src.infrastructure.sqlite.models.location import Location # noqa
@@ -22,6 +23,7 @@ from src.infrastructure.sqlite.models.comment import Comment # noqa
 target_metadata = Base.metadata
 
 config = context.config
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

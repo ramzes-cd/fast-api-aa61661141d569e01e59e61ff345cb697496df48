@@ -1,6 +1,11 @@
+from datetime import datetime
+import mimetypes
+from pathlib import Path
 from typing import List
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -16,14 +21,47 @@ from src.schemas.users import UserOut
 from src.services.auth import get_current_user
 
 router = APIRouter(prefix="/posts", tags=["posts"], dependencies=[Depends(get_current_user)])
+UPLOAD_DIR = Path("uploads/posts")
+ALLOWED_IMAGE_TYPES = {"image/png": ".png", "image/jpeg": ".jpg"}
 
 
 @router.post("/", response_model=PostOut, status_code=status.HTTP_201_CREATED)
 def create_post(
-    payload: PostCreate,
+    title: str = Form(...),
+    text: str = Form(...),
+    pub_date: datetime = Form(...),
+    location_name: str = Form(...),
+    category_slug: str = Form(...),
+    is_published: bool = Form(True),
+    image_file: UploadFile | None = File(default=None),
     current_user: UserOut = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PostOut:
+    image_path: str | None = None
+    if image_file is not None:
+        extension = ALLOWED_IMAGE_TYPES.get(image_file.content_type or "")
+        if extension is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Поддерживаются только изображения PNG и JPG.",
+            )
+
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        image_name = f"{uuid4().hex}{extension}"
+        destination = UPLOAD_DIR / image_name
+        destination.write_bytes(image_file.file.read())
+        image_path = f"/media/posts/{image_name}"
+
+    payload = PostCreate(
+        title=title,
+        text=text,
+        pub_date=pub_date,
+        location_name=location_name,
+        category_slug=category_slug,
+        is_published=is_published,
+        image=image_path,
+    )
+
     try:
         return MethodsForPost().create(db, payload, current_user.nickname)
     except PostDontCreateException as exc:
@@ -46,6 +84,24 @@ def get_post(post_id: int, db: Session = Depends(get_db)) -> PostDetail:
         return MethodsForPost().get_detail(db, post_id)
     except PostNotFoundByIDException as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+
+
+@router.get("/{post_id}/image", response_class=FileResponse)
+def get_post_image(post_id: int, db: Session = Depends(get_db)) -> FileResponse:
+    try:
+        post = MethodsForPost().get_detail(db, post_id)
+    except PostNotFoundByIDException as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+
+    if not post.image:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="У поста нет изображения.")
+
+    image_path = Path(post.image.replace("/media/", "uploads/").lstrip("/"))
+    if not image_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Файл изображения не найден.")
+
+    media_type, _ = mimetypes.guess_type(str(image_path))
+    return FileResponse(path=image_path, media_type=media_type or "application/octet-stream")
 
 
 @router.put("/{post_id}", response_model=PostOut)
