@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -52,15 +53,21 @@ def create_post(
         destination.write_bytes(image_file.file.read())
         image_path = f"/media/posts/{image_name}"
 
-    payload = PostCreate(
-        title=title,
-        text=text,
-        pub_date=pub_date,
-        location_name=location_name,
-        category_slug=category_slug,
-        is_published=is_published,
-        image=image_path,
-    )
+    try:
+        payload = PostCreate(
+            title=title,
+            text=text,
+            pub_date=pub_date,
+            location_name=location_name,
+            category_slug=category_slug,
+            is_published=is_published,
+            image=image_path,
+        )
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=exc.errors(),
+        ) from exc
 
     try:
         return MethodsForPost().create(db, payload, current_user.nickname)
