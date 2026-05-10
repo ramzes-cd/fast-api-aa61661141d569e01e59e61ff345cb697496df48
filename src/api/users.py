@@ -11,17 +11,27 @@ from src.core.exceptions.domain_exceptions import (
 )
 from src.domain.users.use_cases.crud_users import MethodsForUser
 from src.schemas.users import UserCreate, UserOut, UserUpdate
+from src.services.auth import get_current_user
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("/", response_model=List[UserOut])
-def list_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)) -> List[UserOut]:
+def list_users(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    _: UserOut = Depends(get_current_user),
+) -> List[UserOut]:
     return MethodsForUser().get(db, skip, limit)
 
 
 @router.get("/{nickname}", response_model=UserOut)
-def get_user(nickname: str, db: Session = Depends(get_db)) -> UserOut:
+def get_user(
+    nickname: str,
+    db: Session = Depends(get_db),
+    _: UserOut = Depends(get_current_user),
+) -> UserOut:
     try:
         return MethodsForUser().get_detail(db, nickname)
     except UserNotFoundByNicknameException as exc:
@@ -39,7 +49,14 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)) -> UserOut:
 
 
 @router.put("/{nickname}", response_model=UserOut)
-def update_user(nickname: str, payload: UserUpdate, db: Session = Depends(get_db)) -> UserOut:
+def update_user(
+    nickname: str,
+    payload: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user),
+) -> UserOut:
+    if current_user.nickname != nickname:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Можно изменять только свой профиль.")
     try:
         return MethodsForUser().update(db, nickname, payload)
     except UserNotFoundByNicknameException as exc:
@@ -49,7 +66,13 @@ def update_user(nickname: str, payload: UserUpdate, db: Session = Depends(get_db
 
 
 @router.delete("/{nickname}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(nickname: str, db: Session = Depends(get_db)) -> None:
+def delete_user(
+    nickname: str,
+    db: Session = Depends(get_db),
+    current_user: UserOut = Depends(get_current_user),
+) -> None:
+    if current_user.nickname != nickname:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Можно удалить только свой профиль.")
     try:
         MethodsForUser().destroy(db, nickname)
     except UserNotFoundByNicknameException as exc:

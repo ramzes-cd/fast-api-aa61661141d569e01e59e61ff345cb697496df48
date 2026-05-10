@@ -10,12 +10,16 @@ from src.core.exceptions.domain_exceptions import (
 )
 from src.domain.locations.use_cases.crud_locations import MethodsForLocation
 from src.schemas.locations import LocationCreate, LocationOut, LocationUpdate
+from src.services.auth import get_current_user
 
-router = APIRouter(prefix="/locations", tags=["locations"])
+router = APIRouter(prefix="/locations", tags=["locations"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("/", response_model=LocationOut, status_code=status.HTTP_201_CREATED)
-def create_location(payload: LocationCreate, db: Session = Depends(get_db)) -> LocationOut:
+def create_location(
+    payload: LocationCreate,
+    db: Session = Depends(get_db),
+) -> LocationOut:
     try:
         return MethodsForLocation().create(db, payload)
     except LocationIsNotUniqueException as exc:
@@ -36,7 +40,11 @@ def get_location(name: str, db: Session = Depends(get_db)) -> LocationOut:
 
 
 @router.put("/{name}", response_model=LocationOut)
-def update_location(name: str, payload: LocationUpdate, db: Session = Depends(get_db)) -> LocationOut:
+def update_location(
+    name: str,
+    payload: LocationUpdate,
+    db: Session = Depends(get_db),
+) -> LocationOut:
     try:
         return MethodsForLocation().update(db, name, payload)
     except LocationNotFoundByNameException as exc:
@@ -46,7 +54,10 @@ def update_location(name: str, payload: LocationUpdate, db: Session = Depends(ge
 
 
 @router.delete("/{name}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_location(name: str, db: Session = Depends(get_db)) -> None:
+def delete_location(
+    name: str,
+    db: Session = Depends(get_db),
+) -> None:
     try:
         MethodsForLocation().destroy(db, name)
     except LocationNotFoundByNameException as exc:

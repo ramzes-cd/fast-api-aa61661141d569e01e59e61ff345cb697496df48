@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -11,8 +11,10 @@ from src.core.exceptions.domain_exceptions import (
 )
 from src.domain.comments.use_cases.crud_comments import MethodsForComment
 from src.schemas.comments import CommentCreate, CommentOut, CommentUpdate
+from src.schemas.users import UserOut
+from src.services.auth import get_current_user
 
-router = APIRouter(prefix="/comments", tags=["comments"])
+router = APIRouter(prefix="/comments", tags=["comments"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_model=list[CommentOut])
@@ -39,11 +41,11 @@ def get_comment(comment_id: int, db: Session = Depends(get_db)) -> CommentOut:
 @router.post("/", response_model=CommentOut, status_code=status.HTTP_201_CREATED)
 def create_comment(
     payload: CommentCreate,
-    author_id: int = Query(..., ge=1),
+    current_user: UserOut = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CommentOut:
     try:
-        return MethodsForComment().create(db, payload, author_id)
+        return MethodsForComment().create(db, payload, current_user.id)
     except CommentDontCreateException as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
 
@@ -52,11 +54,11 @@ def create_comment(
 def update_comment(
     comment_id: int,
     payload: CommentUpdate,
-    author_id: int = Query(..., ge=1),
+    current_user: UserOut = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CommentOut:
     try:
-        return MethodsForComment().update(db, comment_id, payload, author_id)
+        return MethodsForComment().update(db, comment_id, payload, current_user.id)
     except CommentNotFoundByIDException as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
     except CommentDontChangeException as exc:
@@ -66,11 +68,11 @@ def update_comment(
 @router.delete("/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_comment(
     comment_id: int,
-    author_id: int = Query(..., ge=1),
+    current_user: UserOut = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> None:
     try:
-        MethodsForComment().destroy(db, comment_id, author_id)
+        MethodsForComment().destroy(db, comment_id, current_user.id)
     except CommentNotFoundByIDException as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
     except CommentDontDestroyException as exc:

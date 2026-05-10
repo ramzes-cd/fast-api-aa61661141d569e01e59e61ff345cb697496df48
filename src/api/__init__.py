@@ -1,3 +1,4 @@
+from src.api import auth
 from src.api import users
 from src.api import categories
 from src.api import locations

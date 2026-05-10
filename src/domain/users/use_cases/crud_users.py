@@ -13,6 +13,7 @@ from src.core.exceptions.domain_exceptions import (
     UserNotFoundByNicknameException,
 )
 from src.infrastructure.sqlite.repositories.users import UserRepository
+from src.resources.auth import get_password_hash
 from src.schemas.users import UserCreate, UserOut, UserUpdate
 
 
@@ -31,6 +32,7 @@ class MethodsForUser:
         return UserOut.model_validate(user)
 
     def create(self, db: Session, payload: UserCreate) -> UserOut:
+        payload = payload.model_copy(update={"password": get_password_hash(payload.password)})
         try:
             user = self._repo.create(db, payload)
         except UserByNicknameAlreadyExistsException as exc:

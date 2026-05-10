@@ -10,12 +10,16 @@ from src.core.exceptions.domain_exceptions import (
 )
 from src.domain.categories.use_cases.crud_categories import MethodsForCategory
 from src.schemas.categories import CategoryCreate, CategoryOut, CategoryUpdate
+from src.services.auth import get_current_user
 
-router = APIRouter(prefix="/categories", tags=["categories"])
+router = APIRouter(prefix="/categories", tags=["categories"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("/", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
-def create_category(payload: CategoryCreate, db: Session = Depends(get_db)) -> CategoryOut:
+def create_category(
+    payload: CategoryCreate,
+    db: Session = Depends(get_db),
+) -> CategoryOut:
     try:
         return MethodsForCategory().create(db, payload)
     except CategoryIsNotUniqueException as exc:
@@ -36,7 +40,11 @@ def get_category(category_slug: str, db: Session = Depends(get_db)) -> CategoryO
 
 
 @router.put("/{category_slug}", response_model=CategoryOut)
-def update_category(category_slug: str, payload: CategoryUpdate, db: Session = Depends(get_db)) -> CategoryOut:
+def update_category(
+    category_slug: str,
+    payload: CategoryUpdate,
+    db: Session = Depends(get_db),
+) -> CategoryOut:
     try:
         return MethodsForCategory().update(db, category_slug, payload)
     except CategoryNotFoundBySlugException as exc:
@@ -46,7 +54,10 @@ def update_category(category_slug: str, payload: CategoryUpdate, db: Session = D
 
 
 @router.delete("/{category_slug}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_category(category_slug: str, db: Session = Depends(get_db)) -> None:
+def delete_category(
+    category_slug: str,
+    db: Session = Depends(get_db),
+) -> None:
     try:
         MethodsForCategory().destroy(db, category_slug)
     except CategoryNotFoundBySlugException as exc:

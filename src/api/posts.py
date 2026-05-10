@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -12,18 +12,20 @@ from src.core.exceptions.domain_exceptions import (
 )
 from src.domain.posts.use_cases.crud_posts import MethodsForPost
 from src.schemas.posts import PostCreate, PostDetail, PostOut, PostUpdate
+from src.schemas.users import UserOut
+from src.services.auth import get_current_user
 
-router = APIRouter(prefix="/posts", tags=["posts"])
+router = APIRouter(prefix="/posts", tags=["posts"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("/", response_model=PostOut, status_code=status.HTTP_201_CREATED)
 def create_post(
     payload: PostCreate,
-    author_nickname: str = Query(..., min_length=3),
+    current_user: UserOut = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PostOut:
     try:
-        return MethodsForPost().create(db, payload, author_nickname)
+        return MethodsForPost().create(db, payload, current_user.nickname)
     except PostDontCreateException as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
 
@@ -50,11 +52,11 @@ def get_post(post_id: int, db: Session = Depends(get_db)) -> PostDetail:
 def update_post(
     post_id: int,
     payload: PostUpdate,
-    author_id: int = Query(..., ge=1),
+    current_user: UserOut = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PostOut:
     try:
-        return MethodsForPost().update(db, payload, post_id, author_id)
+        return MethodsForPost().update(db, payload, post_id, current_user.id)
     except PostNotFoundByIDException as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
     except PostDontChangeException as exc:
@@ -64,11 +66,11 @@ def update_post(
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(
     post_id: int,
-    author_id: int = Query(..., ge=1),
+    current_user: UserOut = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> None:
     try:
-        MethodsForPost().destroy(db, post_id, author_id)
+        MethodsForPost().destroy(db, post_id, current_user.id)
     except PostNotFoundByIDException as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
     except PostDontDestroyException as exc:
