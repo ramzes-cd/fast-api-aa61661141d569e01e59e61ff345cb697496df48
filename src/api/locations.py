@@ -1,7 +1,7 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from src.core.exceptions.domain_exceptions import (
@@ -16,49 +16,49 @@ router = APIRouter(prefix="/locations", tags=["locations"], dependencies=[Depend
 
 
 @router.post("/", response_model=LocationOut, status_code=status.HTTP_201_CREATED)
-def create_location(
+async def create_location(
     payload: LocationCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> LocationOut:
     try:
-        return MethodsForLocation().create(db, payload)
+        return await MethodsForLocation().create(db, payload)
     except LocationIsNotUniqueException as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.get_detail()) from exc
 
 
 @router.get("/", response_model=List[LocationOut])
-def list_locations(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)) -> List[LocationOut]:
-    return MethodsForLocation().get(db, skip, limit)
+async def list_locations(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)) -> List[LocationOut]:
+    return await MethodsForLocation().get(db, skip, limit)
 
 
 @router.get("/{name}", response_model=LocationOut)
-def get_location(name: str, db: Session = Depends(get_db)) -> LocationOut:
+async def get_location(name: str, db: AsyncSession = Depends(get_db)) -> LocationOut:
     try:
-        return MethodsForLocation().get_detail(db, name)
+        return await MethodsForLocation().get_detail(db, name)
     except LocationNotFoundByNameException as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail()) from exc
 
 
 @router.put("/{name}", response_model=LocationOut)
-def update_location(
+async def update_location(
     name: str,
     payload: LocationUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> LocationOut:
     try:
-        return MethodsForLocation().update(db, name, payload)
+        return await MethodsForLocation().update(db, name, payload)
     except LocationNotFoundByNameException as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail()) from exc
     except LocationIsNotUniqueException as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.get_detail()) from exc
 
 
 @router.delete("/{name}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_location(
+async def delete_location(
     name: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> None:
     try:
-        MethodsForLocation().destroy(db, name)
+        await MethodsForLocation().destroy(db, name)
     except LocationNotFoundByNameException as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail()) from exc

@@ -1,8 +1,8 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions.database_exceptions import UserNotFoundException
 from src.core.exceptions.domain_exceptions import UserNotFoundByNicknameException, WrongUserPasswordException
-from src.infrastructure.sqlite.repositories.users import UserRepository
+from src.infrastructure.postgre.repositories.users import UserRepository
 from src.resources.auth import verify_password
 from src.schemas.users import UserOut
 
@@ -11,9 +11,9 @@ class AuthenticateUserUseCase:
     def __init__(self) -> None:
         self._repo = UserRepository()
 
-    def get_detail(self, database: Session, nickname: str, password: str) -> UserOut:
+    async def get_detail(self, database: AsyncSession, nickname: str, password: str) -> UserOut:
         try:
-            user_model = self._repo.get_detail(database, nickname)
+            user_model = await self._repo.get_detail(database, nickname)
         except UserNotFoundException as exc:
             raise UserNotFoundByNicknameException(nickname) from exc
 

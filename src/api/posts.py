@@ -7,7 +7,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import ValidationError
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from src.core.exceptions.domain_exceptions import (
@@ -27,7 +27,7 @@ ALLOWED_IMAGE_TYPES = {"image/png": ".png", "image/jpeg": ".jpg"}
 
 
 @router.post("/", response_model=PostOut, status_code=status.HTTP_201_CREATED)
-def create_post(
+async def create_post(
     title: str = Form(...),
     text: str = Form(...),
     pub_date: datetime = Form(...),
@@ -36,10 +36,10 @@ def create_post(
     is_published: bool = Form(True),
     image_file: UploadFile | None = File(default=None),
     current_user: UserOut = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> PostOut:
     image_path: str | None = None
-    if image_file is not None:
+    if image_file is not None and image_file.filename:
         extension = ALLOWED_IMAGE_TYPES.get(image_file.content_type or "")
         if extension is None:
             raise HTTPException(
@@ -50,7 +50,8 @@ def create_post(
         UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         image_name = f"{uuid4().hex}{extension}"
         destination = UPLOAD_DIR / image_name
-        destination.write_bytes(image_file.file.read())
+        body = await image_file.read()
+        destination.write_bytes(body)
         image_path = f"/media/posts/{image_name}"
 
     try:
@@ -70,40 +71,40 @@ def create_post(
         ) from exc
 
     try:
-        return MethodsForPost().create(db, payload, current_user.nickname)
+        return await MethodsForPost().create(db, payload, current_user.nickname)
     except PostDontCreateException as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail()) from exc
 
 
 @router.get("/", response_model=List[PostOut])
-def list_posts(
+async def list_posts(
     skip: int = 0,
     limit: int = 100,
     published_only: bool = True,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> List[PostOut]:
-    return MethodsForPost().get(db, skip, limit, published_only)
+    return await MethodsForPost().get(db, skip, limit, published_only)
 
 
 @router.get("/{post_id}", response_model=PostDetail)
-def get_post(post_id: int, db: Session = Depends(get_db)) -> PostDetail:
+async def get_post(post_id: int, db: AsyncSession = Depends(get_db)) -> PostDetail:
     try:
-        return MethodsForPost().get_detail(db, post_id)
+        return await MethodsForPost().get_detail(db, post_id)
     except PostNotFoundByIDException as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail()) from exc
 
 
 @router.get("/{post_id}/image", response_class=FileResponse)
-def get_post_image(post_id: int, db: Session = Depends(get_db)) -> FileResponse:
+async def get_post_image(post_id: int, db: AsyncSession = Depends(get_db)) -> FileResponse:
     try:
-        post = MethodsForPost().get_detail(db, post_id)
+        post = await MethodsForPost().get_detail(db, post_id)
     except PostNotFoundByIDException as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail()) from exc
 
     if not post.image:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="У поста нет изображения.")
 
-    image_path = Path(post.image.replace("/media/", "uploads/").lstrip("/"))
+    image_path = Path(str(post.image).replace("/media/", "uploads/").lstrip("/"))
     if not image_path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Файл изображения не найден.")
 
@@ -112,29 +113,29 @@ def get_post_image(post_id: int, db: Session = Depends(get_db)) -> FileResponse:
 
 
 @router.put("/{post_id}", response_model=PostOut)
-def update_post(
+async def update_post(
     post_id: int,
     payload: PostUpdate,
     current_user: UserOut = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> PostOut:
     try:
-        return MethodsForPost().update(db, payload, post_id, current_user.id)
+        return await MethodsForPost().update(db, payload, post_id, current_user.id)
     except PostNotFoundByIDException as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail()) from exc
     except PostDontChangeException as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=exc.get_detail()) from exc
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(
+async def delete_post(
     post_id: int,
     current_user: UserOut = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> None:
     try:
-        MethodsForPost().destroy(db, post_id, current_user.id)
+        await MethodsForPost().destroy(db, post_id, current_user.id)
     except PostNotFoundByIDException as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail()) from exc
     except PostDontDestroyException as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=exc.get_detail()) from exc

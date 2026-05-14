@@ -1,8 +1,7 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Text, func
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 
-from src.infrastructure.sqlite.database import Base
+from src.infrastructure.postgre.database import Base
 
 
 class Comment(Base):

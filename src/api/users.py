@@ -1,7 +1,7 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from src.core.exceptions.domain_exceptions import (
@@ -17,63 +17,63 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("/", response_model=List[UserOut])
-def list_users(
+async def list_users(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     _: UserOut = Depends(get_current_user),
 ) -> List[UserOut]:
-    return MethodsForUser().get(db, skip, limit)
+    return await MethodsForUser().get(db, skip, limit)
 
 
 @router.get("/{nickname}", response_model=UserOut)
-def get_user(
+async def get_user(
     nickname: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     _: UserOut = Depends(get_current_user),
 ) -> UserOut:
     try:
-        return MethodsForUser().get_detail(db, nickname)
+        return await MethodsForUser().get_detail(db, nickname)
     except UserNotFoundByNicknameException as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail()) from exc
 
 
 @router.post("/", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def create_user(payload: UserCreate, db: Session = Depends(get_db)) -> UserOut:
+async def create_user(payload: UserCreate, db: AsyncSession = Depends(get_db)) -> UserOut:
     try:
-        return MethodsForUser().create(db, payload)
+        return await MethodsForUser().create(db, payload)
     except UserNicknameIsNotUniqueException as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.get_detail()) from exc
     except UserEmailIsNotUniqueException as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.get_detail()) from exc
 
 
 @router.put("/{nickname}", response_model=UserOut)
-def update_user(
+async def update_user(
     nickname: str,
     payload: UserUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: UserOut = Depends(get_current_user),
 ) -> UserOut:
     if current_user.nickname != nickname:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Можно изменять только свой профиль.")
     try:
-        return MethodsForUser().update(db, nickname, payload)
+        return await MethodsForUser().update(db, nickname, payload)
     except UserNotFoundByNicknameException as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail()) from exc
     except UserEmailIsNotUniqueException as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.get_detail()) from exc
 
 
 @router.delete("/{nickname}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(
+async def delete_user(
     nickname: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_user: UserOut = Depends(get_current_user),
 ) -> None:
     if current_user.nickname != nickname:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Можно удалить только свой профиль.")
     try:
-        MethodsForUser().destroy(db, nickname)
+        await MethodsForUser().destroy(db, nickname)
     except UserNotFoundByNicknameException as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail())
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.get_detail()) from exc

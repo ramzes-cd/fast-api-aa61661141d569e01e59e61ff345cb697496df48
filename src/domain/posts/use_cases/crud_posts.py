@@ -1,6 +1,7 @@
+from pathlib import Path
 from typing import List
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions.database_exceptions import (
     CategoryNotFoundException,
@@ -15,27 +16,35 @@ from src.core.exceptions.domain_exceptions import (
     PostDontDestroyException,
     PostNotFoundByIDException,
 )
-from src.infrastructure.sqlite.repositories.posts import PostRepository
+from src.infrastructure.postgre.repositories.posts import PostRepository
 from src.schemas.posts import PostCreate, PostDetail, PostOut, PostUpdate
+
+
+def _media_path_to_disk(image_url: str | None) -> Path | None:
+    if not image_url:
+        return None
+    relative = str(image_url).replace("/media/", "uploads/").lstrip("/")
+    return Path(relative)
 
 
 class MethodsForPost:
     def __init__(self) -> None:
         self._repo = PostRepository()
 
-    def get(self, db: Session, skip: int, limit: int, published_only: bool) -> List[PostOut]:
-        return [PostOut.model_validate(item) for item in self._repo.get(db, skip, limit, published_only)]
+    async def get(self, db: AsyncSession, skip: int, limit: int, published_only: bool) -> List[PostOut]:
+        rows = await self._repo.get(db, skip, limit, published_only)
+        return [PostOut.model_validate(item) for item in rows]
 
-    def get_detail(self, db: Session, post_id: int) -> PostDetail:
+    async def get_detail(self, db: AsyncSession, post_id: int) -> PostDetail:
         try:
-            post = self._repo.get_detail(db, post_id)
+            post = await self._repo.get_detail(db, post_id)
         except PostNotFoundException as exc:
             raise PostNotFoundByIDException(post_id) from exc
         return PostDetail.model_validate(post)
 
-    def create(self, db: Session, payload: PostCreate, nickname: str) -> PostOut:
+    async def create(self, db: AsyncSession, payload: PostCreate, nickname: str) -> PostOut:
         try:
-            post = self._repo.create(db, payload, nickname)
+            post = await self._repo.create(db, payload, nickname)
         except UserNotFoundException as exc:
             raise PostDontCreateException("автор не найден") from exc
         except CategoryNotFoundException as exc:
@@ -44,9 +53,9 @@ class MethodsForPost:
             raise PostDontCreateException("локация не найдена") from exc
         return PostOut.model_validate(post)
 
-    def update(self, db: Session, payload: PostUpdate, post_id: int, author_id: int) -> PostOut:
+    async def update(self, db: AsyncSession, payload: PostUpdate, post_id: int, author_id: int) -> PostOut:
         try:
-            post = self._repo.update(db, payload, post_id, author_id)
+            post = await self._repo.update(db, payload, post_id, author_id)
         except PostNotFoundException as exc:
             raise PostNotFoundByIDException(post_id) from exc
         except CategoryNotFoundException as exc:
@@ -57,9 +66,14 @@ class MethodsForPost:
             raise PostDontChangeException("пост не принадлежит пользователю") from exc
         return PostOut.model_validate(post)
 
-    def destroy(self, db: Session, post_id: int, author_id: int) -> None:
+    async def destroy(self, db: AsyncSession, post_id: int, author_id: int) -> None:
         try:
-            self._repo.destroy(db, post_id, author_id)
+            post = await self._repo.get_detail(db, post_id)
+            image = post.image
+            await self._repo.destroy(db, post_id, author_id)
+            path = _media_path_to_disk(image)
+            if path is not None and path.is_file():
+                path.unlink()
         except PostNotFoundException as exc:
             raise PostNotFoundByIDException(post_id) from exc
         except CredentialException as exc:

@@ -1,19 +1,17 @@
-"""Create core tables
+"""initial postgres tables
 
-Revision ID: 9e7a1c2b4f10
-Revises: ee6d9d7a08fd
-Create Date: 2026-05-10 20:05:00.000000
+Revision ID: a1b2c3d4e5f6
+Revises:
+Create Date: 2026-05-14
+
 """
-
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
-
-# revision identifiers, used by Alembic.
-revision: str = "9e7a1c2b4f10"
-down_revision: Union[str, Sequence[str], None] = "ee6d9d7a08fd"
+revision: str = "a1b2c3d4e5f6"
+down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -95,18 +93,14 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index(op.f("ix_comments_id"), table_name="comments")
     op.drop_table("comments")
-
     op.drop_index(op.f("ix_posts_id"), table_name="posts")
     op.drop_table("posts")
-
     op.drop_index(op.f("ix_users_nickname"), table_name="users")
     op.drop_index(op.f("ix_users_id"), table_name="users")
     op.drop_index(op.f("ix_users_email"), table_name="users")
     op.drop_table("users")
-
     op.drop_index(op.f("ix_locations_id"), table_name="locations")
     op.drop_table("locations")
-
     op.drop_index(op.f("ix_categories_slug"), table_name="categories")
     op.drop_index(op.f("ix_categories_id"), table_name="categories")
     op.drop_table("categories")
