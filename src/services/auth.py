@@ -4,11 +4,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
 from src.core.exceptions.auth_exceptions import CredentialsException
+from src.core.logging import get_logger
 from src.core.exceptions.database_exceptions import UserNotFoundException
 from src.infrastructure.postgre.database import get_db
 from src.infrastructure.postgre.repositories.users import UserRepository
 from src.resources.auth import oauth2_scheme
 from src.schemas.users import UserOut
+
+logger = get_logger(__name__)
 
 
 async def get_current_user(
@@ -25,13 +28,16 @@ async def get_current_user(
         )
         nickname: str | None = payload.get("sub")
         if nickname is None:
+            logger.warning("Invalid token: missing subject")
             raise CredentialsException(detail=auth_error_message)
     except JWTError as exc:
+        logger.warning("Invalid token: JWT decode error")
         raise CredentialsException(detail=auth_error_message) from exc
 
     try:
         user = await UserRepository().get_detail(db, nickname)
     except UserNotFoundException as exc:
+        logger.warning("Invalid token: user not found nickname=%s", nickname)
         raise CredentialsException(detail=auth_error_message) from exc
 
     return UserOut.model_validate(user)

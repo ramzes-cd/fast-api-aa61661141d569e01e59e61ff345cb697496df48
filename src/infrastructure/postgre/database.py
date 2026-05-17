@@ -4,6 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import declarative_base
 
 from src.core.config import settings
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 engine = create_async_engine(
     settings.postgres_url,
@@ -23,4 +26,8 @@ SessionLocal = async_sessionmaker(
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with SessionLocal() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            logger.exception("Database session error")
+            raise

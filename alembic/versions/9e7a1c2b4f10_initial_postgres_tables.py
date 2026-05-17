@@ -1,6 +1,6 @@
 """initial postgres tables
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 9e7a1c2b4f10
 Revises:
 Create Date: 2026-05-14
 
@@ -10,7 +10,7 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "a1b2c3d4e5f6"
+revision: str = "9e7a1c2b4f10"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None

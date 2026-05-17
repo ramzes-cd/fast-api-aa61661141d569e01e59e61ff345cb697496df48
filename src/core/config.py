@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
     LOG_LEVEL: str = "INFO"
+    LOG_FILE: str = "log.txt"
 
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432

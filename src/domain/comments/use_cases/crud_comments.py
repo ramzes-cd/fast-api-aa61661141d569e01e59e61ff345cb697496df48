@@ -2,6 +2,7 @@ from typing import List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.logging import get_logger
 from src.core.exceptions.database_exceptions import (
     CommentNotFoundException,
     CredentialException,
@@ -17,6 +18,8 @@ from src.core.exceptions.domain_exceptions import (
 from src.infrastructure.postgre.repositories.comments import CommentRepository
 from src.schemas.comments import CommentCreate, CommentOut, CommentUpdate
 
+logger = get_logger(__name__)
+
 
 class MethodsForComment:
     def __init__(self) -> None:
@@ -26,6 +29,7 @@ class MethodsForComment:
         try:
             comments = await self._repo.get(db, post_id, skip, limit)
         except PostNotFoundException as exc:
+            logger.warning("Comments list failed: post not found id=%s", post_id)
             raise PostNotFoundByIDException(post_id) from exc
         return [CommentOut.model_validate(item) for item in comments]
 
@@ -33,6 +37,7 @@ class MethodsForComment:
         try:
             comment = await self._repo.get_detail(db, comment_id)
         except CommentNotFoundException as exc:
+            logger.warning("Comment not found id=%s", comment_id)
             raise CommentNotFoundByIDException(comment_id) from exc
         return CommentOut.model_validate(comment)
 
@@ -41,21 +46,30 @@ class MethodsForComment:
             comment = await self._repo.create(db, payload, author_id)
         except PostNotFoundException as exc:
             raise CommentDontCreateException("пост не найден") from exc
-        return CommentOut.model_validate(comment)
+        comment_out = CommentOut.model_validate(comment)
+        logger.info("Comment created id=%s post_id=%s", comment_out.id, payload.post_id)
+        return comment_out
 
     async def update(self, db: AsyncSession, comment_id: int, payload: CommentUpdate, author_id: int) -> CommentOut:
         try:
             comment = await self._repo.update(db, comment_id, payload, author_id)
         except CommentNotFoundException as exc:
+            logger.warning("Comment not found for update id=%s", comment_id)
             raise CommentNotFoundByIDException(comment_id) from exc
         except CredentialException as exc:
+            logger.warning("Comment update denied id=%s author_id=%s", comment_id, author_id)
             raise CommentDontChangeException("комментарий не принадлежит пользователю") from exc
-        return CommentOut.model_validate(comment)
+        comment_out = CommentOut.model_validate(comment)
+        logger.info("Comment updated id=%s", comment_id)
+        return comment_out
 
     async def destroy(self, db: AsyncSession, comment_id: int, author_id: int) -> None:
         try:
             await self._repo.destroy(db, comment_id, author_id)
         except CommentNotFoundException as exc:
+            logger.warning("Comment not found for delete id=%s", comment_id)
             raise CommentNotFoundByIDException(comment_id) from exc
         except CredentialException as exc:
+            logger.warning("Comment delete denied id=%s author_id=%s", comment_id, author_id)
             raise CommentDontDestroyException("комментарий не принадлежит пользователю") from exc
+        logger.info("Comment deleted id=%s", comment_id)

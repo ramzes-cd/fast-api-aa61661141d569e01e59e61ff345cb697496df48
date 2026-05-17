@@ -3,6 +3,7 @@ from typing import List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.logging import get_logger
 from src.core.exceptions.database_exceptions import (
     CategoryNotFoundException,
     CredentialException,
@@ -18,6 +19,8 @@ from src.core.exceptions.domain_exceptions import (
 )
 from src.infrastructure.postgre.repositories.posts import PostRepository
 from src.schemas.posts import PostCreate, PostDetail, PostOut, PostUpdate
+
+logger = get_logger(__name__)
 
 
 def _media_path_to_disk(image_url: str | None) -> Path | None:
@@ -39,6 +42,7 @@ class MethodsForPost:
         try:
             post = await self._repo.get_detail(db, post_id)
         except PostNotFoundException as exc:
+            logger.warning("Post not found id=%s", post_id)
             raise PostNotFoundByIDException(post_id) from exc
         return PostDetail.model_validate(post)
 
@@ -51,20 +55,26 @@ class MethodsForPost:
             raise PostDontCreateException("категория не найдена") from exc
         except LocationNotFoundException as exc:
             raise PostDontCreateException("локация не найдена") from exc
-        return PostOut.model_validate(post)
+        post_out = PostOut.model_validate(post)
+        logger.info("Post created id=%s author=%s", post_out.id, nickname)
+        return post_out
 
     async def update(self, db: AsyncSession, payload: PostUpdate, post_id: int, author_id: int) -> PostOut:
         try:
             post = await self._repo.update(db, payload, post_id, author_id)
         except PostNotFoundException as exc:
+            logger.warning("Post not found for update id=%s", post_id)
             raise PostNotFoundByIDException(post_id) from exc
         except CategoryNotFoundException as exc:
             raise PostDontChangeException("категория не найдена") from exc
         except LocationNotFoundException as exc:
             raise PostDontChangeException("локация не найдена") from exc
         except CredentialException as exc:
+            logger.warning("Post update denied id=%s author_id=%s", post_id, author_id)
             raise PostDontChangeException("пост не принадлежит пользователю") from exc
-        return PostOut.model_validate(post)
+        post_out = PostOut.model_validate(post)
+        logger.info("Post updated id=%s", post_id)
+        return post_out
 
     async def destroy(self, db: AsyncSession, post_id: int, author_id: int) -> None:
         try:
@@ -75,6 +85,9 @@ class MethodsForPost:
             if path is not None and path.is_file():
                 path.unlink()
         except PostNotFoundException as exc:
+            logger.warning("Post not found for delete id=%s", post_id)
             raise PostNotFoundByIDException(post_id) from exc
         except CredentialException as exc:
+            logger.warning("Post delete denied id=%s author_id=%s", post_id, author_id)
             raise PostDontDestroyException("пост не принадлежит пользователю") from exc
+        logger.info("Post deleted id=%s", post_id)

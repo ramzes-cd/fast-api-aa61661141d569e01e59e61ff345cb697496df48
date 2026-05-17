@@ -4,9 +4,11 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from src.api import auth, categories, comments, locations, posts, users
-from src.core.logging import UserActionLoggingMiddleware, configure_logging
+from src.core.logging import UserActionLoggingMiddleware, configure_logging, get_logger
 
 configure_logging()
+logger = get_logger(__name__)
+logger.info("Starting Blogicum API")
 
 UPLOAD_ROOT = Path("uploads")
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)

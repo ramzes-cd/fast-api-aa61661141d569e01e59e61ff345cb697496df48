@@ -35,6 +35,7 @@ services:
       - "8000:8000"
     volumes:
       - uploads_data:/app/uploads
+      - ./log.txt:/app/log.txt
     restart: unless-stopped
 
 volumes:
