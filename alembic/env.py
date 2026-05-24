@@ -10,9 +10,9 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.core.config import settings  # noqa: E402
-from src.infrastructure.postgre.database import Base  # noqa: E402
-from src.infrastructure.postgre.models import category, comment, location, post, user  # noqa: F401, E402
+from src.core.config import settings  # noqa
+from src.infrastructure.postgre.database import Base  # noqa
+from src.infrastructure.postgre.models import category, comment, location, post, user  # noqa
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.postgres_url)
